@@ -27,12 +27,17 @@ function downloadPhoto(tab) {
         ? location.href.split('/photos/')[1].split('/')[1]
         : location.href.split('fbid=')[1].split('&')[0];
       opt.click();
-      findDownload(box, pid);
+      picDownload(box, pid);
     `}, onScriptExecuted);
   } else if (contentType == 'video') {
     chrome.tabs.executeScript(+tab.id, {code: `
       var possibles = document.querySelectorAll('[href*="https://video"][href*="fbcdn.net"]');
-      makeDownload(possibles[possibles.length - 1]?.getAttribute('href'));
+      if (possibles.length) {
+        makeDownload(possibles[possibles.length - 1]?.getAttribute('href'));
+      } else {
+        var id = (location.href.match(/\\/\\d+\\//g)[0]||[])?.slice(1,-1);
+        vidDownload(id);
+      }
     `}, onScriptExecuted);
   } else if (contentType == 'story') {
     // if (tab.audible) ...it's maybe a video
@@ -83,13 +88,27 @@ chrome.tabs.onUpdated.addListener(function(tabId, info, tab) {
 chrome.tabs.getSelected(null, analizeTab);
 
 function analizeTab(tab) {
-  // console.log('[FED] analizeTab', tab);
-  if (tab.url) {
-    let tabId = tab.id;
-    detectContentType(tab.url);
-    if (contentType) console.log('[FED] content found', contentType);
-    chrome.browserAction.setTitle({title: contentType ? "Click to download (or press Ctrl+S)" : "Open a Facebook media you wish to download.", tabId});
-    chrome.browserAction.setIcon({tabId, path: generateIcons(contentType ? 'icon' : 'disabled')});
+  if (!tab.url) return;
+  let {url} = tab;
+  let tabId = tab.id;
+  let icon = 'disabled';
+  contentType = null;
+  if (url.includes("www.facebook.com")) {
+    if (url.includes("/photo")) contentType = 'photo';
+    else if (url.includes("/stories/")) contentType = 'story';
+    else if (url.includes("/video")) contentType = 'video';
+    icon = 'icon';
+  }
+  chrome.browserAction.setTitle({title: contentType ? `Download ${contentType} (or press Ctrl+S)` : "Open a Facebook media you wish to download.", tabId});
+  chrome.browserAction.setIcon({tabId, path: generateIcons(icon)});
+  chrome.browserAction.setBadgeText({
+    'text': contentType
+  });
+  chrome.browserAction.setBadgeBackgroundColor({
+    'color': '#333333'
+  });
+  if (contentType) {
+    console.log('[FED] content found', contentType);
   }
 }
 
@@ -107,14 +126,5 @@ function onScriptExecuted(results) {
     console.log('script not executed', error.message);
   } else {
     console.log('script executed', results);
-  }
-}
-
-function detectContentType(url) {
-  contentType = null;
-  if (url.includes("www.facebook.com")) {
-    if (url.includes("/photo")) contentType = 'photo';
-    else if (url.includes("/stories/")) contentType = 'story';
-    else if (url.includes("/video")) contentType = 'video';
   }
 }
