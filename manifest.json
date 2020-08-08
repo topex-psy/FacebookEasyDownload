@@ -8,7 +8,8 @@
     "webRequest",
     "webRequestBlocking",
     "tabs",
-    "*://*/*"
+    "https://www.facebook.com/*",
+    "https://*.fbcdn.net/*"
   ],
   "browser_action": {
     "default_title": "Click to download (or press Ctrl+S)",
@@ -31,7 +32,7 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*/*"
+        "https://www.facebook.com/*"
       ],
       "js": ["content.js"]
     }

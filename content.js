@@ -47,17 +47,10 @@ function makeDownload(src) {
     return;
   }
   let fileName = src.split("/").pop().split('?')[0];
-  // TODO how to download blob:url?
-  // if (src.includes('blob:')) {
-  //   var blob = new Blob([src], {type: "video/mp4"});
-  //   fileName = document.title;
-  //   downloadBlob(blob, fileName);
-  // } else {
-    fetch(src).then(response => response.blob()).then(blob => downloadBlob(blob, fileName)).catch(err => {
-      console.log('[FED] fetch error', err);
-      downloadUrl(src, fileName, true);
-    });
-  // }
+  fetch(src).then(response => response.blob()).then(blob => downloadBlob(blob, fileName)).catch(err => {
+    console.log('[FED] fetch error', err);
+    downloadUrl(src, fileName, true);
+  });
 }
 
 function downloadBlob(blob, fileName) {

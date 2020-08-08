@@ -1,28 +1,23 @@
-var WebRequestParams = {
-  urls: ["<all_urls>"]
+var webRequestParams = {
+  urls: ["https://*.fbcdn.net/*"],
+  types: ['xmlhttprequest']
 };
+var webRequestLastFound = [];
+var contentType;
 
-chrome.webRequest.onBeforeRequest.addListener((details) => onWebRequest(details, 'onBeforeRequest'), WebRequestParams);
-chrome.webRequest.onBeforeSendHeaders.addListener((details) => onWebRequest(details, 'onBeforeSendHeaders'), WebRequestParams);
-chrome.webRequest.onSendHeaders.addListener((details) => onWebRequest(details, 'onSendHeaders'), WebRequestParams);
-chrome.webRequest.onHeadersReceived.addListener((details) => onWebRequest(details, 'onHeadersReceived'), WebRequestParams);
-chrome.webRequest.onAuthRequired.addListener((details) => onWebRequest(details, 'onAuthRequired'), WebRequestParams);
-chrome.webRequest.onResponseStarted.addListener((details) => onWebRequest(details, 'onResponseStarted'), WebRequestParams);
-chrome.webRequest.onBeforeRedirect.addListener((details) => onWebRequest(details, 'onBeforeRedirect'), WebRequestParams);
-chrome.webRequest.onCompleted.addListener((details) => onWebRequest(details, 'onCompleted'), WebRequestParams);
-chrome.webRequest.onErrorOccurred.addListener((details) => onWebRequest(details, 'onErrorOccurred'), WebRequestParams);
+chrome.webRequest.onCompleted.addListener((details) => onWebRequest(details, 'onCompleted'), webRequestParams);
 
 function onWebRequest(details, type) {
   let {url} = details;
   if (url.includes('.mp4?') && url.includes('&bytestart=')) {
-    console.log('[FED] WEB REQUEEEEEEEEEEEEEEST', type, url.split('&bytestart=')[0]);
-  } else {
-    // console.log('[FED] WEB REQUEST', type, url);
+    let mediaUrl = url.split('&bytestart=')[0];
+    console.log('[FED] media request', type, mediaUrl);
+    webRequestLastFound.unshift(mediaUrl);
+    webRequestLastFound = webRequestLastFound.slice(0,2);
   }
 }
 
 function downloadPhoto(tab) {
-  let contentType = detectContentType(tab.url);
   console.log('[FED] download', contentType, 'from', tab);
   if (contentType == 'photo') {
     chrome.tabs.executeScript(+tab.id, {code: `
@@ -40,12 +35,23 @@ function downloadPhoto(tab) {
       makeDownload(possibles[possibles.length - 1]?.getAttribute('href'));
     `}, onScriptExecuted);
   } else if (contentType == 'story') {
+    // if (tab.audible) ...it's maybe a video
+    // var possibles = [
+    //   ...document.querySelectorAll('img[draggable="false"]'),
+    //   ...document.querySelectorAll('video[src*="blob:"]')
+    // ];
+    // TODO combine video & audio into 1 file:
+    // https://stackoverflow.com/questions/28890275/how-to-combine-video-and-audio-through-api-or-js
+    // https://stackoverflow.com/questions/52768330/combine-audio-and-video-streams-into-one-file-with-mediarecorder
+    // https://bgrins.github.io/videoconverter.js/
     chrome.tabs.executeScript(+tab.id, {code: `
-      var possibles = [
-        ...document.querySelectorAll('img[draggable="false"]'),
-        ...document.querySelectorAll('video[src*="blob:"]')
-      ];
-      makeDownload(possibles[possibles.length - 1]?.getAttribute('src'));
+      var possibles = document.querySelector('[data-pagelet="Stories"]').querySelectorAll('img[draggable="false"]');
+      if (possibles.length) {
+        makeDownload(possibles[possibles.length - 1]?.getAttribute('src'));
+      } else {
+        makeDownload('${webRequestLastFound[0] || ''}');
+        makeDownload('${webRequestLastFound[1] || ''}');
+      }
     `}, onScriptExecuted);
   } else {
     alert('Open a Facebook photo, video, or story you wish to download.');
@@ -71,7 +77,7 @@ chrome.tabs.onActivated.addListener(function(info) {
 
 chrome.tabs.onUpdated.addListener(function(tabId, info, tab) {
   console.log('[FED] tab updated', tabId, tab, info);
-  analizeTab(tab);
+  if (tab.status != "unloaded") analizeTab(tab);
 });
 
 chrome.tabs.getSelected(null, analizeTab);
@@ -80,7 +86,7 @@ function analizeTab(tab) {
   // console.log('[FED] analizeTab', tab);
   if (tab.url) {
     let tabId = tab.id;
-    let contentType = detectContentType(tab.url);
+    detectContentType(tab.url);
     if (contentType) console.log('[FED] content found', contentType);
     chrome.browserAction.setTitle({title: contentType ? "Click to download (or press Ctrl+S)" : "Open a Facebook media you wish to download.", tabId});
     chrome.browserAction.setIcon({tabId, path: generateIcons(contentType ? 'icon' : 'disabled')});
@@ -105,10 +111,10 @@ function onScriptExecuted(results) {
 }
 
 function detectContentType(url) {
+  contentType = null;
   if (url.includes("www.facebook.com")) {
-    if (url.includes("/photo")) return 'photo';
-    if (url.includes("/stories/")) return 'story';
-    if (url.includes("/video")) return 'video';
+    if (url.includes("/photo")) contentType = 'photo';
+    else if (url.includes("/stories/")) contentType = 'story';
+    else if (url.includes("/video")) contentType = 'video';
   }
-  return null;
 }
