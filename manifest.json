@@ -9,20 +9,21 @@
     "webRequestBlocking",
     "tabs",
     "https://www.facebook.com/*",
+    "https://www.youtube.com/*",
     "https://*.fbcdn.net/*"
   ],
   "browser_action": {
     "default_title": "Click to download (or press Ctrl+S)",
     "default_icon": {
-      "16": "icon16.png",
-      "24": "icon24.png",
-      "32": "icon32.png"
+      "16": "icons/icon16.png",
+      "24": "icons/icon24.png",
+      "32": "icons/icon32.png"
     }
   },
   "icons": {
-    "16": "icon16.png",
-    "48": "icon48.png",
-    "128": "icon128.png"
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "background": {
     "scripts": [
@@ -31,10 +32,16 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://www.facebook.com/*"
-      ],
+      "matches": ["*://*/*"],
       "js": ["content.js"]
+    },
+    {
+      "matches": ["https://www.facebook.com/*"],
+      "js": ["facebook.js"]
+    },
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["youtube.js"]
     }
   ]
 }

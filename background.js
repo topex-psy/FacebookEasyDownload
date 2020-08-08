@@ -17,114 +17,97 @@ function onWebRequest(details, type) {
   }
 }
 
-function downloadPhoto(tab) {
-  console.log('[FED] download', contentType, 'from', tab);
-  if (contentType == 'photo') {
-    chrome.tabs.executeScript(+tab.id, {code: `
-      var opt = document.querySelector('[data-action-type="open_options_flyout"]');
-      var box = opt.closest('.fbPhotoSnowliftContainer');
-      var pid = location.href.includes('/photos/')
-        ? location.href.split('/photos/')[1].split('/')[1]
-        : location.href.split('fbid=')[1].split('&')[0];
-      opt.click();
-      picDownload(box, pid);
-    `}, onScriptExecuted);
-  } else if (contentType == 'video') {
-    chrome.tabs.executeScript(+tab.id, {code: `
-      var possibles = document.querySelectorAll('[href*="https://video"][href*="fbcdn.net"]');
-      if (possibles.length) {
-        makeDownload(possibles[possibles.length - 1]?.getAttribute('href'));
-      } else {
-        var id = (location.href.match(/\\/\\d+\\//g)[0]||[])?.slice(1,-1);
-        vidDownload(id);
-      }
-    `}, onScriptExecuted);
-  } else if (contentType == 'story') {
-    // if (tab.audible) ...it's maybe a video
-    // var possibles = [
-    //   ...document.querySelectorAll('img[draggable="false"]'),
-    //   ...document.querySelectorAll('video[src*="blob:"]')
-    // ];
-    // TODO combine video & audio into 1 file:
-    // https://stackoverflow.com/questions/28890275/how-to-combine-video-and-audio-through-api-or-js
-    // https://stackoverflow.com/questions/52768330/combine-audio-and-video-streams-into-one-file-with-mediarecorder
-    // https://bgrins.github.io/videoconverter.js/
-    chrome.tabs.executeScript(+tab.id, {code: `
-      var possibles = document.querySelector('[data-pagelet="Stories"]').querySelectorAll('img[draggable="false"]');
-      if (possibles.length) {
-        makeDownload(possibles[possibles.length - 1]?.getAttribute('src'));
-      } else {
-        makeDownload('${webRequestLastFound[0] || ''}');
-        makeDownload('${webRequestLastFound[1] || ''}');
-      }
-    `}, onScriptExecuted);
-  } else {
-    alert('Open a Facebook photo, video, or story you wish to download.');
+function onIconClick(tab) {
+  let {url} = tab;
+  if (!contentType) {
+    if (url.includes("www.facebook.com")) {
+      alert('Open Facebook photo, video, or story you wish to download.');
+    } else if (url.includes("www.youtube.com")) {
+      alert('Open YouTube video you wish to download.');
+    }
+    return;
   }
+  console.log('[FED] download', contentType, 'from', tab);
+  chrome.tabs.executeScript(+tab.id, {code: `dl['${contentType}']();`}, function(results) {
+    let error = chrome.runtime.lastError;
+    if (error) {
+      console.log('script not executed', error.message);
+    } else {
+      console.log('script executed', results);
+    }
+  });
 }
 
-chrome.browserAction.onClicked.addListener(downloadPhoto);
+chrome.browserAction.onClicked.addListener(onIconClick);
 
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   console.log("on action", request, sender);
   let { action } = request;
-  if (action == 'clickIcon') chrome.tabs.getSelected(null, downloadPhoto);
-  sendResponse({action, ok: true});
+  let response = {ok: true};
+  switch (action) {
+    case 'clickIcon':
+      chrome.tabs.getSelected(null, onIconClick);
+      break;
+    case 'getLastRequests':
+      response = {webRequestLastFound};
+      break;
+  }
+  sendResponse({action, ...response});
 });
 
 chrome.tabs.onActivated.addListener(function(info) {
+  console.log('[FED] tab activated', info);
   let { tabId } = info;
-  chrome.tabs.get(+tabId, function(tab) {
-    console.log("[FED] tab activated", tabId, tab, info);
-    analizeTab(tab);
-  });
+  analyzeTab(tabId);
 });
 
 chrome.tabs.onUpdated.addListener(function(tabId, info, tab) {
   console.log('[FED] tab updated', tabId, tab, info);
-  if (tab.status != "unloaded") analizeTab(tab);
+  if (tab.status != "unloaded") analyzeTab(tabId);
 });
 
-chrome.tabs.getSelected(null, analizeTab);
+function analyze(tab) {
+  let error = chrome.runtime.lastError;
+  if (error) {
+    console.log('[FED] analyze', error.message);
+  } else if (tab.url) {
+    console.log("[FED] analyze", tab);
+    let {url} = tab;
+    let tabId = tab.id;
+    let site;
+    contentType = null;
+    if (url.includes("www.facebook.com")) {
+      if (url.includes("/photo")) contentType = 'photo';
+      else if (url.includes("/stories/")) contentType = 'story';
+      else if (url.includes("/video")) contentType = 'video';
+      site = 'Facebook';
+    } else if (url.includes("www.youtube.com")) {
+      if (url.includes("/watch?")) contentType = 'video';
+      site = 'YouTube';
+    }
+    chrome.browserAction.setTitle({title: contentType ? `Download ${site} ${contentType} (or press Ctrl+S)` : "Open a Facebook media you wish to download.", tabId});
+    chrome.browserAction.setIcon({tabId, path: generateIcons(site?.toLowerCase() || 'disabled')});
+    chrome.browserAction.setBadgeText({'text': contentType});
+    chrome.browserAction.setBadgeBackgroundColor({'color': '#333333'});
+    if (contentType) {
+      console.log('[FED] content found', site, contentType);
+    }
+  }
+};
 
-function analizeTab(tab) {
-  if (!tab.url) return;
-  let {url} = tab;
-  let tabId = tab.id;
-  let icon = 'disabled';
-  contentType = null;
-  if (url.includes("www.facebook.com")) {
-    if (url.includes("/photo")) contentType = 'photo';
-    else if (url.includes("/stories/")) contentType = 'story';
-    else if (url.includes("/video")) contentType = 'video';
-    icon = 'icon';
-  }
-  chrome.browserAction.setTitle({title: contentType ? `Download ${contentType} (or press Ctrl+S)` : "Open a Facebook media you wish to download.", tabId});
-  chrome.browserAction.setIcon({tabId, path: generateIcons(icon)});
-  chrome.browserAction.setBadgeText({
-    'text': contentType
-  });
-  chrome.browserAction.setBadgeBackgroundColor({
-    'color': '#333333'
-  });
-  if (contentType) {
-    console.log('[FED] content found', contentType);
-  }
+function analyzeTab(tabId = null) {
+  console.log("[FED] analyzeTab", tabId);
+  if (tabId) chrome.tabs.get(+tabId, analyze);
+  else chrome.tabs.getSelected(null, analyze);
 }
+
+// chrome.tabs.getSelected(null, analyzeTab);
+analyzeTab();
 
 function generateIcons(name) {
   return {
-    "16": name + "16.png",
-    "24": name + "24.png",
-    "32": name + "32.png"
+    "16": 'icons/' + name + "16.png",
+    "24": 'icons/' + name + "24.png",
+    "32": 'icons/' + name + "32.png"
   };
-}
-
-function onScriptExecuted(results) {
-  let error = chrome.runtime.lastError;
-  if (error) {
-    console.log('script not executed', error.message);
-  } else {
-    console.log('script executed', results);
-  }
 }
