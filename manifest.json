@@ -5,9 +5,10 @@
   "description": "1-Click to download opened Facebook photo, video, or story.",
   "author": "Taufik Nur Rahmanda",
   "permissions": [
-    "https://www.facebook.com/*",
     "webRequest",
-    "tabs"
+    "webRequestBlocking",
+    "tabs",
+    "*://*/*"
   ],
   "browser_action": {
     "default_title": "Click to download (or press Ctrl+S)",
@@ -30,7 +31,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.facebook.com/*"
+        "*://*/*"
       ],
       "js": ["content.js"]
     }

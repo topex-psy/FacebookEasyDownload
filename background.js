@@ -1,3 +1,26 @@
+var WebRequestParams = {
+  urls: ["<all_urls>"]
+};
+
+chrome.webRequest.onBeforeRequest.addListener((details) => onWebRequest(details, 'onBeforeRequest'), WebRequestParams);
+chrome.webRequest.onBeforeSendHeaders.addListener((details) => onWebRequest(details, 'onBeforeSendHeaders'), WebRequestParams);
+chrome.webRequest.onSendHeaders.addListener((details) => onWebRequest(details, 'onSendHeaders'), WebRequestParams);
+chrome.webRequest.onHeadersReceived.addListener((details) => onWebRequest(details, 'onHeadersReceived'), WebRequestParams);
+chrome.webRequest.onAuthRequired.addListener((details) => onWebRequest(details, 'onAuthRequired'), WebRequestParams);
+chrome.webRequest.onResponseStarted.addListener((details) => onWebRequest(details, 'onResponseStarted'), WebRequestParams);
+chrome.webRequest.onBeforeRedirect.addListener((details) => onWebRequest(details, 'onBeforeRedirect'), WebRequestParams);
+chrome.webRequest.onCompleted.addListener((details) => onWebRequest(details, 'onCompleted'), WebRequestParams);
+chrome.webRequest.onErrorOccurred.addListener((details) => onWebRequest(details, 'onErrorOccurred'), WebRequestParams);
+
+function onWebRequest(details, type) {
+  let {url} = details;
+  if (url.includes('.mp4?') && url.includes('&bytestart=')) {
+    console.log('[FED] WEB REQUEEEEEEEEEEEEEEST', type, url.split('&bytestart=')[0]);
+  } else {
+    // console.log('[FED] WEB REQUEST', type, url);
+  }
+}
+
 function downloadPhoto(tab) {
   let contentType = detectContentType(tab.url);
   console.log('[FED] download', contentType, 'from', tab);
@@ -9,7 +32,7 @@ function downloadPhoto(tab) {
         ? location.href.split('/photos/')[1].split('/')[1]
         : location.href.split('fbid=')[1].split('&')[0];
       opt.click();
-      tryDownload(box, pid);
+      findDownload(box, pid);
     `}, onScriptExecuted);
   } else if (contentType == 'video') {
     chrome.tabs.executeScript(+tab.id, {code: `

@@ -14,7 +14,7 @@ document.onkeydown = (e) => {
   }
 };
 
-function tryDownload(box, pid) {
+function findDownload(box, pid) {
   clearInterval(tryInterval);
   console.log('[FED] picture id', pid);
   tryNumber = 0;
