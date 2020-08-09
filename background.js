@@ -4,26 +4,48 @@ var webRequestParams = {
 };
 var webRequestLastFound = [];
 var contentType;
+var isLoading = {};
 
+chrome.browserAction.onClicked.addListener(onIconClick);
 chrome.webRequest.onCompleted.addListener((details) => onWebRequest(details, 'onCompleted'), webRequestParams);
-
-function onWebRequest(details, type) {
-  let {url} = details;
-  if (url.includes('.mp4?') && url.includes('&bytestart=')) {
-    let mediaUrl = url.split('&bytestart=')[0];
-    console.log('[FED] media request', type, mediaUrl);
-    webRequestLastFound.unshift(mediaUrl);
-    webRequestLastFound = webRequestLastFound.slice(0,2);
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  console.log("on action", request, sender);
+  let { action } = request;
+  let response = {ok: true};
+  switch (action) {
+    case 'clickIcon':
+      chrome.tabs.getSelected(null, onIconClick);
+      break;
+    case 'getLastRequests':
+      response = {webRequestLastFound};
+      break;
+    case 'setLoading':
+      isLoading[sender.tab.id] = request.value;
+      if (request.value) {
+        generateIcons(sender.tab.id, 'spinner');
+      } else {
+        analyzeTab();
+      }
+      break;
   }
-}
+  sendResponse({action, ...response});
+});
+
+chrome.tabs.onActivated.addListener(function(info) {
+  console.log('[FED] tab activated', info);
+  analyzeTab();
+});
+
+chrome.tabs.onUpdated.addListener(function(tabId, info, tab) {
+  console.log('[FED] tab updated', tabId, tab, info);
+  if (tab.selected && tab.status != "unloaded") analyzeTab();
+});
 
 function onIconClick(tab) {
   let {url} = tab;
   if (!contentType) {
     if (url.includes("www.facebook.com")) {
       alert('Open Facebook photo, video, or story you wish to download.');
-    } else if (url.includes("www.youtube.com")) {
-      alert('Open YouTube video you wish to download.');
     }
     return;
   }
@@ -38,76 +60,52 @@ function onIconClick(tab) {
   });
 }
 
-chrome.browserAction.onClicked.addListener(onIconClick);
-
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-  console.log("on action", request, sender);
-  let { action } = request;
-  let response = {ok: true};
-  switch (action) {
-    case 'clickIcon':
-      chrome.tabs.getSelected(null, onIconClick);
-      break;
-    case 'getLastRequests':
-      response = {webRequestLastFound};
-      break;
+function onWebRequest(details, type) {
+  let {url} = details;
+  if (url.includes('.mp4?') && url.includes('&bytestart=')) {
+    let mediaUrl = url.split('&bytestart=')[0];
+    console.log('[FED] media request', type, mediaUrl);
+    if (webRequestLastFound[0] != mediaUrl) {
+      webRequestLastFound.unshift(mediaUrl);
+      webRequestLastFound = webRequestLastFound.slice(0,2);
+    }
   }
-  sendResponse({action, ...response});
-});
+}
 
-chrome.tabs.onActivated.addListener(function(info) {
-  console.log('[FED] tab activated', info);
-  let { tabId } = info;
-  analyzeTab(tabId);
-});
-
-chrome.tabs.onUpdated.addListener(function(tabId, info, tab) {
-  console.log('[FED] tab updated', tabId, tab, info);
-  if (tab.status != "unloaded") analyzeTab(tabId);
-});
+function generateIcons(tabId, name) {
+  console.log('[FED] set browser icon', tabId, name);
+  chrome.browserAction.setIcon({tabId, path: isLoading[tabId] ? {
+    "32": "icons/spinner.gif"
+  } : {
+    "16": "icons/" + name + "16.png",
+    "24": "icons/" + name + "24.png",
+    "32": "icons/" + name + "32.png"
+  }});
+}
 
 function analyze(tab) {
-  let error = chrome.runtime.lastError;
-  if (error) {
-    console.log('[FED] analyze', error.message);
-  } else if (tab.url) {
-    console.log("[FED] analyze", tab);
-    let {url} = tab;
-    let tabId = tab.id;
-    let site;
-    contentType = null;
-    if (url.includes("www.facebook.com")) {
-      if (url.includes("/photo")) contentType = 'photo';
-      else if (url.includes("/stories/")) contentType = 'story';
-      else if (url.includes("/video")) contentType = 'video';
-      site = 'Facebook';
-    } else if (url.includes("www.youtube.com")) {
-      if (url.includes("/watch?")) contentType = 'video';
-      site = 'YouTube';
-    }
-    chrome.browserAction.setTitle({title: contentType ? `Download ${site} ${contentType} (or press Ctrl+S)` : "Open a Facebook media you wish to download.", tabId});
-    chrome.browserAction.setIcon({tabId, path: generateIcons(site?.toLowerCase() || 'disabled')});
-    chrome.browserAction.setBadgeText({'text': contentType});
-    chrome.browserAction.setBadgeBackgroundColor({'color': '#333333'});
-    if (contentType) {
-      console.log('[FED] content found', site, contentType);
-    }
+  console.log("[FED] analyze", tab);
+  let {url} = tab;
+  let tabId = tab.id;
+  let site;
+  contentType = null;
+  if (url.includes("www.facebook.com")) {
+    if (url.includes("/photo")) contentType = 'photo';
+    else if (url.includes("/stories/")) contentType = 'story';
+    else if (url.includes("/video")) contentType = 'video';
+    site = 'Facebook';
+  }
+  chrome.browserAction.setTitle({title: contentType ? `Download ${site} ${contentType} (or press Ctrl+S)` : "Open a Facebook media you wish to download.", tabId});
+  chrome.browserAction.setBadgeText({'text': contentType});
+  chrome.browserAction.setBadgeBackgroundColor({'color': '#333333'});
+  generateIcons(tabId, site ? 'icon' : 'disabled');
+  if (contentType) {
+    console.log('[FED] content found', site, contentType);
   }
 };
 
-function analyzeTab(tabId = null) {
-  console.log("[FED] analyzeTab", tabId);
-  if (tabId) chrome.tabs.get(+tabId, analyze);
-  else chrome.tabs.getSelected(null, analyze);
+function analyzeTab() {
+  chrome.tabs.getSelected(null, analyze);
 }
 
-// chrome.tabs.getSelected(null, analyzeTab);
 analyzeTab();
-
-function generateIcons(name) {
-  return {
-    "16": 'icons/' + name + "16.png",
-    "24": 'icons/' + name + "24.png",
-    "32": 'icons/' + name + "32.png"
-  };
-}

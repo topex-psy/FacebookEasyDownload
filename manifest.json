@@ -9,7 +9,6 @@
     "webRequestBlocking",
     "tabs",
     "https://www.facebook.com/*",
-    "https://www.youtube.com/*",
     "https://*.fbcdn.net/*"
   ],
   "browser_action": {
@@ -32,16 +31,8 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*/*"],
-      "js": ["content.js"]
-    },
-    {
       "matches": ["https://www.facebook.com/*"],
-      "js": ["facebook.js"]
-    },
-    {
-      "matches": ["https://www.youtube.com/*"],
-      "js": ["youtube.js"]
+      "js": ["content.js"]
     }
   ]
 }
