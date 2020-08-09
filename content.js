@@ -6,6 +6,10 @@ const maxRetry = 2;
 const dl = {
   photo: () => {
     var opt = document.querySelector('[data-action-type="open_options_flyout"]');
+    if (!opt) {
+      alert("Couldn't find content.");
+      return;
+    }
     var box = opt.closest('.fbPhotoSnowliftContainer');
     var pid = location.href.includes('/photos/')
       ? location.href.split('/photos/')[1].split('/')[1]
