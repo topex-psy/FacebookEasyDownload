@@ -51,12 +51,8 @@ function onIconClick(tab) {
   }
   console.log('[FED] download', contentType, 'from', tab);
   chrome.tabs.executeScript(+tab.id, {code: `dl['${contentType}']();`}, function(results) {
-    let error = chrome.runtime.lastError;
-    if (error) {
-      console.log('script not executed', error.message);
-    } else {
-      console.log('script executed', results);
-    }
+    let {lastError} = chrome.runtime;
+    console.log('script execution result', lastError ? lastError.message : results);
   });
 }
 
