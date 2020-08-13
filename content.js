@@ -21,13 +21,14 @@ const dl = {
     tryInterval = setInterval(() => {
       var con = box.querySelectorAll('.uiContextualLayerPositioner:not(.hidden_elem)');
       var btn = con[con.length-1]?.querySelector('a[data-action-type="download_photo"][href*="'+pid+'"]');
+      var ebd = con[con.length-1]?.querySelector('a[data-action-tag="embed_post"][href*="'+pid+'"]');
       if (btn) {
         clearInterval(tryInterval);
         console.log('[FED] download button click');
         btn.click();
         nextPhoto();
       } else {
-        if (tryNumber < maxRetry) {
+        if (!ebd && tryNumber < maxRetry) {
           tryNumber++;
           console.log('[FED] try to find download button');
         } else {

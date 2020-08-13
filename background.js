@@ -42,7 +42,8 @@ chrome.tabs.onUpdated.addListener(function(tabId, info, tab) {
 });
 
 function onIconClick(tab) {
-  let {url} = tab;
+  let { url, status } = tab;
+  if (status != "complete") return;
   if (!contentType) {
     if (url.includes("www.facebook.com")) {
       alert('Open Facebook photo, video, or story you wish to download.');
@@ -81,7 +82,7 @@ function generateIcons(tabId, name) {
 
 function analyze(tab) {
   console.log("[FED] analyze", tab);
-  let {url} = tab;
+  let { url, status } = tab;
   let tabId = tab.id;
   let site;
   contentType = null;
@@ -91,10 +92,14 @@ function analyze(tab) {
     else if (url.includes("/video")) contentType = 'video';
     site = 'Facebook';
   }
-  chrome.browserAction.setTitle({title: contentType ? `Download ${site} ${contentType} (or press Ctrl+S)` : "Open a Facebook media you wish to download.", tabId});
-  chrome.browserAction.setBadgeText({'text': contentType});
-  chrome.browserAction.setBadgeBackgroundColor({'color': '#333333'});
-  generateIcons(tabId, site ? 'icon' : 'disabled');
+  if (status == "complete") {
+    chrome.browserAction.setTitle({title: contentType ? `Download ${site} ${contentType} (or press Ctrl+S)` : "Open a Facebook media you wish to download.", tabId});
+    chrome.browserAction.setBadgeText({'text': contentType});
+    chrome.browserAction.setBadgeBackgroundColor({'color': '#333333'});
+    generateIcons(tabId, site ? 'icon' : 'disabled');
+  } else {
+    chrome.browserAction.setTitle({title: "Please wait ...", tabId});
+  }
   if (contentType) {
     console.log('[FED] content found', site, contentType);
   }
